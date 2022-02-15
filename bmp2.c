@@ -57,18 +57,6 @@
 static int8_t null_ptr_check(const struct bmp2_dev *dev);
 
 /*!
- * @brief This internal API interleaves the register addresses and respective
- * register data for a burst write
- *
- * @param[in] reg_addr   : Register address array
- * @param[out] temp_buff : Interleaved register address and data array
- * @param[in] reg_data   : Register data array
- * @param[in] len        : Length of the reg_addr and reg_data arrays
- *
- */
-static void interleave_data(const uint8_t *reg_addr, uint8_t *temp_buff, const uint8_t *reg_data, uint32_t len);
-
-/*!
  * @brief This API is used to read the calibration parameters used
  * for calculating the compensated data.
  *
@@ -289,7 +277,6 @@ int8_t bmp2_get_regs(uint8_t reg_addr, uint8_t *reg_data, uint32_t len, struct b
 int8_t bmp2_set_regs(uint8_t *reg_addr, const uint8_t *reg_data, uint32_t len, struct bmp2_dev *dev)
 {
     int8_t rslt;
-    uint8_t temp_buff[8]; /* Typically not to write more than 4 registers */
     uint32_t temp_len;
     uint8_t reg_addr_cnt;
 
@@ -304,8 +291,6 @@ int8_t bmp2_set_regs(uint8_t *reg_addr, const uint8_t *reg_data, uint32_t len, s
     {
         if (len > 0)
         {
-            temp_buff[0] = reg_data[0];
-
             /* Mask the register address' MSB if interface selected is SPI */
             if (dev->intf == BMP2_SPI_INTF)
             {
@@ -318,19 +303,10 @@ int8_t bmp2_set_regs(uint8_t *reg_addr, const uint8_t *reg_data, uint32_t len, s
                 }
             }
 
-            /* Burst write mode */
-            if (len > 1)
+            for (size_t i = 0; i < len; i++)
             {
-                /* Interleave register address w.r.t data for burst write */
-                interleave_data(reg_addr, temp_buff, reg_data, len);
-                temp_len = ((len * 2) - 1);
+                dev->intf_rslt = dev->write(reg_addr[i], &reg_data[i], 1, dev->intf_ptr);
             }
-            else
-            {
-                temp_len = len;
-            }
-
-            dev->intf_rslt = dev->write(reg_addr[0], temp_buff, temp_len, dev->intf_ptr);
 
             /* Check for communication error and mask with an internal error code */
             if (dev->intf_rslt != BMP2_INTF_RET_SUCCESS)
@@ -594,21 +570,6 @@ static int8_t null_ptr_check(const struct bmp2_dev *dev)
     }
 
     return rslt;
-}
-
-/*!
- * @brief This internal API interleaves the register addresses and respective
- * register data for a burst write
- */
-static void interleave_data(const uint8_t *reg_addr, uint8_t *temp_buff, const uint8_t *reg_data, uint32_t len)
-{
-    uint32_t index;
-
-    for (index = 1; index < len; index++)
-    {
-        temp_buff[(index * 2) - 1] = reg_addr[index];
-        temp_buff[index * 2] = reg_data[index];
-    }
 }
 
 /*!
